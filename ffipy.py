@@ -9,8 +9,8 @@
 # PSL
 import sys
 import os
+import warnings
 from configparser import ConfigParser
-from warnings import warn
 
 # 3rd party libs
 import zeep
@@ -22,7 +22,7 @@ class FFIEC_Client(zeep.Client):
 
     Args:
         Similar to parent class `zeep.Client`, except: 
-            `wsse` can be a tuple containing `username` and `usernameToken`, or
+            `wsse` can be a tuple containing `username` and `password`, or
                 `wsse` can be configured in `~/.ffiec` (or file pointed to by
                 FFIEC_USER_CONF environment variable) in INI format under
                 section `[wsse]` 
@@ -33,28 +33,52 @@ class FFIEC_Client(zeep.Client):
             `wsdl` is constant `str` pointing to the `wsdl` for the FFIEC SOAP
                 server; 
             `wsse_path` is a `str` pointing to the path of the `wsse`
-                configuration. 
-
+                configuration;
+            `store_login` is `bool` that if set to True will store the user's
+                FFIEC login info for future use. The path of this file is
+                `~/.ffiec` by default, or can be set in the environment
+                variable FFIEC_USER_CONF.
+    
     Methods:
         See https://cdr.ffiec.gov/Public/PWS/WebServices/RetrievalService.asmx
         for the methods which have been implemented.
     """
+    wsdl = ('https://cdr.ffiec.gov/Public/PWS/WebServices/'
+            'RetrievalService.asmx?WSDL')
 
     def __init__(self, wsse=None, transport=None, service_name=None,
                  port_name=None, plugins=None, strict=True,
-                 xml_huge_tree=False):
-        self.wsdl = ('https://cdr.ffiec.gov/Public/PWS/WebServices/'
-                     'RetrievalService.asmx?WSDL')
+                 xml_huge_tree=False, store_login=True):
         self.wsse_path = os.getenv('FFIEC_USER_CONF',
                                    os.path.join(os.environ['HOME'], '.ffiec'))
         self.wsse = wsse
-        zeep.Client.__init__(self, self.wsdl, self.wsse, transport, service_name,
-                        port_name, plugins, strict, xml_huge_tree)
+        zeep.Client.__init__(self, self.wsdl, self.wsse, transport,
+                             service_name, port_name, plugins, strict,
+                             xml_huge_tree)
+
+        # Ensure that user login (i.e., the wsse variable) was good
+        retry = self.__check_login()
+        while retry and retry.startswith(('y', 'Y')):
+            username = input('Username for your FFIEC account: ')
+            password = input('Password token for your FFIEC account: ')
+            self.wsse = UsernameToken(username, password)
+            zeep.Client.__init__(self, self.wsdl.location, self.wsse, transport,
+                                 service_name, port_name, plugins, strict,
+                                 xml_huge_tree)
+            retry = self.__check_login()
+
+        if retry is None:
+            # User gained access; save login info (as needed) for later use
+            wsse_from_file = wsse is None and os.access(self.wsse_path, os.F_OK)
+            if store_login and not wsse_from_file:
+                self.__store_login()
+            
 
     @property
     def wsse(self):
         """Returns the wsse property of the class"""
         return self.__wsse
+
 
     @wsse.setter
     def wsse(self, wsse):
@@ -67,18 +91,55 @@ class FFIEC_Client(zeep.Client):
             conf = ConfigParser()
             conf.read(self.wsse_path)
             self.__wsse = UsernameToken(conf['wsse']['username'],
-                                        conf['wsse']['usernameToken'])
+                                        conf['wsse']['password'])
         else:
-            warn('Was not able to set WSSE authentication.')
-            self.__wsse = None
-        
-        if self.__wsse is not None and not os.access(self.wsse_path, os.F_OK):
-            conf = ConfigParser()
-            conf['wsse'] = {'username': self.__wsse.username,
-                            'usernameToken': self.__wsse.usernameToken}
-            with open(self.wsse_path, 'w') as f:
-                conf.write(f)
+            username = input('Username for your FFIEC account: ')
+            password = input('Password token for you FFIEC account: ')
+            self.__wsse = UsernameToken(username, password)
 
+
+    def __check_login(self):
+        """Checks for user access and asks user to retry if no access / error.
+        
+        Args:
+            None
+
+        Returns:
+            retry (str): user input to question if they want to try new login;
+                returns None if user access is good.
+        """
+        # Try to check for access
+        try:
+            if self.test_user_access():  # User has access
+                return None
+            else:
+                print('FFIEC login does not have user access...')
+
+        # Catch any login errors and print message from error
+        except zeep.exceptions.Fault as err:
+            print('Error with FFIEC login: %s...\n' % err.message)
+
+        # Give user the chance to retry
+        retry = input('Would you like to try a new login? (y/n): ')
+        print()
+
+        # Warn user who does not want to retry
+        if retry.startswith(('n', 'N')):
+            warnings.warn('Was unable to successfully log into the FFIEC site.'
+                          ' You may not be able to use class methods. To create'
+                          ' an account, visit https://cdr.ffiec.gov/cdr/Public/'
+                          'LegalNoticeandPrivacyPolicy.aspx in your browser.')
+
+        return retry
+
+
+    def __store_login(self):
+        """Stores login info (username, password) in a conf file."""
+        conf = ConfigParser()
+        conf['wsse'] = {'username': self.wsse.username,
+                        'password': self.wsse.password}
+        with open(self.wsse_path, 'w') as f:
+            conf.write(f)
 
 
     def retrieve_fascimile(self, ds_name='Call',
