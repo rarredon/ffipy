@@ -1,7 +1,9 @@
 #!/bin/python
 # ------------------------------------------------------------------------------
 # Purpose: an interface for retrieving reports from the FFIEC site
-# Usage: TBD
+# Usage: FFIEC_Client provides a wrapper class using zeep to interface with the
+#   FFIEC SOAP servers
+# Docs: python -c "import ffipy; help('ffipy.FFIEC_Client')"
 # Author: Ryan Arredondo (ryan.c.arredondo@gmail.com)
 # Date: 06/07/2017
 # ------------------------------------------------------------------------------
@@ -9,7 +11,7 @@
 # PSL
 import sys
 import os
-import warnings
+from warnings import warn
 from configparser import ConfigParser
 
 # 3rd party libs
@@ -21,24 +23,24 @@ class FFIEC_Client(zeep.Client):
     """ A wrapper class of zeep.Client for connecting to FFIEC's SOAP server.
 
     Args:
-        Similar to parent class `zeep.Client`, except: 
+        Similar to parent class `zeep.Client`, except:
             `wsse` can be a tuple containing `username` and `password`, or
                 `wsse` can be configured in `~/.ffiec` (or file pointed to by
                 FFIEC_USER_CONF environment variable) in INI format under
-                section `[wsse]` 
+                section `[wsse]`
             `wsdl` is not passed as an argument, b/c `wsdl` is constant.
-        
+
     Attributes:
         Similar to parent class `zeep.Client`, except:
             `wsdl` is constant `str` pointing to the `wsdl` for the FFIEC SOAP
-                server; 
+                server;
             `wsse_path` is a `str` pointing to the path of the `wsse`
                 configuration;
             `store_login` is `bool` that if set to True will store the user's
                 FFIEC login info for future use. The path of this file is
                 `~/.ffiec` by default, or can be set in the environment
                 variable FFIEC_USER_CONF.
-    
+
     Methods:
         See https://cdr.ffiec.gov/Public/PWS/WebServices/RetrievalService.asmx
         for the methods which have been implemented.
@@ -62,23 +64,21 @@ class FFIEC_Client(zeep.Client):
             username = input('Username for your FFIEC account: ')
             password = input('Password token for your FFIEC account: ')
             self.wsse = UsernameToken(username, password)
-            zeep.Client.__init__(self, self.wsdl.location, self.wsse, transport,
-                                 service_name, port_name, plugins, strict,
-                                 xml_huge_tree)
+            zeep.Client.__init__(self, self.wsdl.location, self.wsse,
+                                 transport, service_name, port_name, plugins,
+                                 strict, xml_huge_tree)
             retry = self.__check_login()
 
         if retry is None:
             # User gained access; save login info (as needed) for later use
-            wsse_from_file = wsse is None and os.access(self.wsse_path, os.F_OK)
-            if store_login and not wsse_from_file:
+            wsse_via_file = wsse is None and os.access(self.wsse_path, os.F_OK)
+            if store_login and not wsse_via_file:
                 self.__store_login()
-            
 
     @property
     def wsse(self):
         """Returns the wsse property of the class"""
         return self.__wsse
-
 
     @wsse.setter
     def wsse(self, wsse):
@@ -97,10 +97,9 @@ class FFIEC_Client(zeep.Client):
             password = input('Password token for you FFIEC account: ')
             self.__wsse = UsernameToken(username, password)
 
-
     def __check_login(self):
         """Checks for user access and asks user to retry if no access / error.
-        
+
         Args:
             None
 
@@ -125,13 +124,12 @@ class FFIEC_Client(zeep.Client):
 
         # Warn user who does not want to retry
         if retry.startswith(('n', 'N')):
-            warnings.warn('Was unable to successfully log into the FFIEC site.'
-                          ' You may not be able to use class methods. To create'
-                          ' an account, visit https://cdr.ffiec.gov/cdr/Public/'
-                          'LegalNoticeandPrivacyPolicy.aspx in your browser.')
+            warn('Was unable to successfully log into the FFIEC site.'
+                 ' You may not be able to use class methods. To create'
+                 ' an account, visit https://cdr.ffiec.gov/cdr/Public/'
+                 'LegalNoticeandPrivacyPolicy.aspx in your browser.')
 
         return retry
-
 
     def __store_login(self):
         """Stores login info (username, password) in a conf file."""
@@ -141,30 +139,29 @@ class FFIEC_Client(zeep.Client):
         with open(self.wsse_path, 'w') as f:
             conf.write(f)
 
-
-    def retrieve_fascimile(self, ds_name='Call',
-                          reporting_pd_end='3/31/2017',
-                          fiID_type='ID_RSSD', fiID=64150,
-                          facsimile_fmt='PDF', 
-                          outfile=None, return_result=True):
+    def retrieve_facsimile(self, ds_name='Call',
+                           reporting_pd_end='3/31/2017',
+                           fiID_type='ID_RSSD', fiID=64150,
+                           facsimile_fmt='PDF',
+                           outfile=None, return_result=True):
         """Retrieves a facsimile (e.g., a report) from FFIEC site.
-        
+
         Args:
             ds_name (str): DataSeriesName (default is 'Call')
             reporting_pd_end (str): Date for end of the reporting period
                 (default is 3/31/17)
             fiID_type (str): Type of Financial Inst ID (default is 'ID_RSSD')
             fiID (int): Financial Inst ID (default is 64150, for testing)
-            fascimile_fmt (str): Format of fascimile to retrieve (default is
-                'PDF') 
+            facsimile_fmt (str): Format of facsimile to retrieve (default is
+                'PDF')
             outfile (str): path to write facsimile to; no ouput, if None
-                (default is None) 
+                (default is None)
             return_result (bool): If True, return the retrieved facsimile
-                (default is True) 
+                (default is True)
 
         Returns:
             facsimile (bytes): the revtrieved facsimile (only if
-                return_result==True) 
+                return_result==True)
 
         """
         # Set up kw args
@@ -176,8 +173,10 @@ class FFIEC_Client(zeep.Client):
         facsimile_fmt = facsimile_fmt_type(facsimile_fmt)
 
         # Get results
-        facsimile = self.service.RetrieveFacsimile(ds_name, reporting_pd_end,
-                                                   fiID_type, fiID, facsimile_fmt)
+        facsimile = self.service.RetrieveFacsimile(ds_name,
+                                                   reporting_pd_end,
+                                                   fiID_type, fiID,
+                                                   facsimile_fmt)
         # Write file
         if outfile:
             with open(outfile, 'wb') as f:
@@ -187,12 +186,11 @@ class FFIEC_Client(zeep.Client):
         if return_result:
             return facsimile
 
-
     def retrieve_filers_since_date(self, ds_name='Call',
                                    reporting_pd_end='3/31/2017',
                                    last_update_date='3/31/2017'):
         """Retrieves ID RSSDs of filers after given date for given reporting pd.
-        
+
         Args:
             ds_name (str): DataSeriesName (default is 'Call')
             reporting_pd_end (str): Date for end of the reporting period
@@ -209,16 +207,16 @@ class FFIEC_Client(zeep.Client):
         ds_name = data_series(ds_name)
 
         # Get and return results
-        filers = self.service.RetrieveFilersSinceDate(ds_name, reporting_pd_end,
+        filers = self.service.RetrieveFilersSinceDate(ds_name,
+                                                      reporting_pd_end,
                                                       last_update_date)
         return filers
 
-
-    def retrieve_filers_submission_date_time(self, ds_name='Call',
-                                   reporting_pd_end='3/31/2017',
-                                   last_update_date='3/31/2017'):
+    def retrieve_filers_submission_datetime(self, ds_name='Call',
+                                            reporting_pd_end='3/31/2017',
+                                            last_update_date='3/31/2017'):
         """Retrieves ID RSSD, DateTime of filers after given date, reporting pd.
-        
+
         Args:
             ds_name (str): DataSeriesName (default is 'Call')
             reporting_pd_end (str): Date for end of the reporting period
@@ -228,7 +226,7 @@ class FFIEC_Client(zeep.Client):
 
         Returns:
             results (list of dicts): dict for each filer with keys 'ID_RSSD',
-                'DateTime' 
+                'DateTime'
 
         """
         # Set up kw args
@@ -236,14 +234,14 @@ class FFIEC_Client(zeep.Client):
         ds_name = data_series(ds_name)
 
         # Get and return results
-        results = self.service.RetrieveFilersSubmissionDateTime(ds_name,
-                                                                reporting_pd_end,
-                                                                last_update_date)
+        results = (self.service
+                   .RetrieveFilersSubmissionDateTime(ds_name,
+                                                     reporting_pd_end,
+                                                     last_update_date))
         return results
 
-    
     def retrieve_panel_of_reporters(self, ds_name='Call',
-                                   reporting_pd_end='3/31/2017'):
+                                    reporting_pd_end='3/31/2017'):
         """Retrieves Fin Insts in Panel of Reporters for given reporting pd.
 
         Args:
@@ -264,7 +262,8 @@ class FFIEC_Client(zeep.Client):
         ds_name = data_series(ds_name)
 
         # Get and return results
-        results = self.service.RetrievePanelOfReporters(ds_name, reporting_pd_end)
+        results = self.service.RetrievePanelOfReporters(ds_name,
+                                                        reporting_pd_end)
         return results
 
     def retrieve_reporting_periods(self, ds_name='Call'):
@@ -285,10 +284,9 @@ class FFIEC_Client(zeep.Client):
         dates = self.service.RetrieveReportingPeriods(ds_name)
         return dates
 
-
     def retrieve_UBPR_reporting_periods(self):
         """Retrieves end dates of UBPR reporting periods.
-        
+
         Args:
             None
 
@@ -300,23 +298,24 @@ class FFIEC_Client(zeep.Client):
         dates = self.service.RetrieveUBPRReportingPeriods()
         return dates
 
-    def retrieve_UBPR_XBRL_fascimile(self, reporting_pd_end='3/31/2017',
+    def retrieve_UBPR_XBRL_facsimile(self, reporting_pd_end='3/31/2017',
                                      fiID_type='ID_RSSD', fiID=64150,
                                      outfile=None, return_result=True):
         """Retrieves a UBPR facsimile in XBRL format from FFIEC site.
-        
+
         Args:
             reporting_pd_end (str): Date for end of the reporting period
                 (default is 3/31/17)
             fiID_type (str): Type of Financial Inst ID (default is 'ID_RSSD')
             fiID (int): Financial Inst ID (default is 64150, for testing)
             outfile (str): path to write facsimile to; no ouput, if None
-                (default is None) 
+                (default is None)
             return_result (bool): If True, return the retrieved facsimile
-                (default is True) 
+                (default is True)
 
         Returns:
-        facsimile (bytes): the revtrieved facsimile (only if return_result==True)
+            facsimile (bytes): the revtrieved facsimile (only if
+                return_result==True)
 
     """
         # Set up kw args
@@ -339,7 +338,7 @@ class FFIEC_Client(zeep.Client):
     def test_user_access(self):
         """Tests whether or not user has access to FFIEC SOAP service
 
-        Args: 
+        Args:
             None
 
         Returns:
