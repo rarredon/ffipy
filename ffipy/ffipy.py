@@ -184,7 +184,7 @@ class FFIEC_Client(zeep.Client):
                                                    facsimile_fmt)
         # Write file
         if outfile:
-            mode = 'wb' if facsimile_fmt = 'PDF' else 'w'
+            mode = 'wb' if facsimile_fmt == 'PDF' else 'w'
             with open(outfile, mode) as f:
                 f.write(facsimile)
 

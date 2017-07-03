@@ -18,7 +18,8 @@ from zeep.exceptions import Fault
 from ffipy import FFIEC_Client
 
 # Login parameters
-wsdl = 'https://cdr.ffiec.gov/Public/PWS/WebServices/RetrievalService.asmx?WSDL'
+wsdl = \
+    'https://cdr.ffiec.gov/Public/PWS/WebServices/RetrievalService.asmx?WSDL'
 username = input('Username (if username is invalid all tests will fail): ')
 password = input('Password (if password is invalid all tests will fail): ')
 wsse = UsernameToken(username, password)
@@ -35,6 +36,7 @@ unique_filepath = os.path.join(os.curdir, str(uuid4()))
 while os.access(unique_filepath, os.F_OK):
     unique_filepath = os.path.join(os.curdir, str(uuid4()))
 os.environ['FFIEC_USER_CONF'] = unique_filepath
+
 
 class FFIEC_Client_TestCase(unittest.TestCase):
     @classmethod
