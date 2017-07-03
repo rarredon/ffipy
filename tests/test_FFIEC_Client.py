@@ -101,12 +101,12 @@ class FFIEC_Client_TestCase(unittest.TestCase):
         self.assertEqual(client_result, zeep_result)
 
     def test_retrieve_UBPR_reporting_periods(self):
-        client_result = self.client.retrieve_UBPR_reporting_periods()
+        client_result = self.client.retrieve_ubpr_reporting_periods()
         zeep_result = self.zeep.service.RetrieveUBPRReportingPeriods()
         self.assertEqual(client_result, zeep_result)
 
     def test_retrieve_UBPR_XBRL_facsimile(self):
-        client_result = self.client.retrieve_UBPR_XBRL_facsimile()
+        client_result = self.client.retrieve_ubpr_xbrl_facsimile()
         zeep_result = \
             self.zeep.service.RetrieveUBPRXBRLFacsimile(date, ID_type, ID)
         self.assertEqual(client_result, zeep_result)
