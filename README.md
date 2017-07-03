@@ -7,3 +7,9 @@ To install:
 ```
 >>> python setup.py install
 ```
+
+For documentation:
+
+```
+>>> python -c "import ffipy; help('ffipy.FFIEC_Client')"
+```
