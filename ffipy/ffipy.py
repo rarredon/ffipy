@@ -290,7 +290,7 @@ class FFIEC_Client(zeep.Client):
         dates = self.service.RetrieveReportingPeriods(ds_name)
         return dates
 
-    def retrieve_UBPR_reporting_periods(self):
+    def retrieve_ubpr_reporting_periods(self):
         """Retrieves end dates of UBPR reporting periods.
 
         Args:
@@ -304,7 +304,7 @@ class FFIEC_Client(zeep.Client):
         dates = self.service.RetrieveUBPRReportingPeriods()
         return dates
 
-    def retrieve_UBPR_XBRL_facsimile(self, reporting_pd_end='3/31/2017',
+    def retrieve_ubpr_xbrl_facsimile(self, reporting_pd_end='3/31/2017',
                                      fiID_type='ID_RSSD', fiID=64150,
                                      outfile=None, return_result=True):
         """Retrieves a UBPR facsimile in XBRL format from FFIEC site.
